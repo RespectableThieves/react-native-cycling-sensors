@@ -1,31 +1,91 @@
-import * as React from 'react';
+import React, { useEffect, useState } from 'react'
+import { Button, EmitterSubscription, NativeEventEmitter, NativeModules, SafeAreaView, StyleSheet, Text, View } from 'react-native'
+import { PowerMeters } from 'react-native-cycling-sensors'
 
-import { StyleSheet, View, Text } from 'react-native';
-import { multiply } from 'react-native-cycling-sensors';
+const BleManagerModule = NativeModules.BleManager;
+const bleManagerEmitter = new NativeEventEmitter(BleManagerModule);
 
-export default function App() {
-  const [result, setResult] = React.useState<number | undefined>();
+const App = () => {
+  const [isScanning, setIsScanning] = useState(false); 
+  const powerMeters = new PowerMeters() 
 
-  React.useEffect(() => {
-    multiply(3, 7).then(setResult);
+  const startScan = () => {
+    if (!isScanning) {
+      powerMeters.scan().then(() => {
+        console.log('Scanning...');
+        setIsScanning(true);
+      }).catch(err => {
+        console.error(err);
+      });
+    }    
+  }
+
+  const handleDiscoverPeripheral = (peripheral: any) => {
+    console.log(peripheral);
+  }
+
+  const handleStopScan = () => {
+    console.log('Scan is stopped');
+    setIsScanning(false);
+    powerMeters.getDiscoveredPeripherals().then((devices) => {
+      console.log(devices)
+    })
+  }
+
+  useEffect(() => {
+    let subscriptionStopScan: EmitterSubscription
+    let subscriptionDiscover: EmitterSubscription
+
+    const startBleSensors = async () => {
+      await powerMeters.requestPermissions()
+      await powerMeters.start()
+      subscriptionStopScan = powerMeters.addListener('BleManagerStopScan', handleStopScan);
+      subscriptionDiscover = powerMeters.addListener('BleManagerDiscoverPeripheral', handleDiscoverPeripheral)
+
+    };
+  
+    startBleSensors(); // run it, run it
+  
+    return () => {
+      // this now gets called when the component unmounts
+      powerMeters.removeListeners([subscriptionStopScan, subscriptionDiscover]);
+    };
   }, []);
 
   return (
-    <View style={styles.container}>
-      <Text>Result: {result}</Text>
-    </View>
+    <SafeAreaView style={styles.container}>
+      <View>
+        <Text>Testing...</Text>
+        <Button 
+                title={'Scan Bluetooth (' + (isScanning ? 'on' : 'off') + ')'}
+                onPress={() => startScan() } 
+              />  
+      </View>
+    </SafeAreaView> 
   );
 }
+
+
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    alignItems: 'center',
     justifyContent: 'center',
+    marginHorizontal: 16,
   },
-  box: {
-    width: 60,
-    height: 60,
-    marginVertical: 20,
+  title: {
+    textAlign: 'center',
+    marginVertical: 8,
+  },
+  fixToText: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  separator: {
+    marginVertical: 8,
+    borderBottomColor: '#737373',
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
 });
+
+export default App;
