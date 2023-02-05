@@ -357,7 +357,7 @@ import {
       this.serviceUUID = serviceUUID
     }
   
-    startInstantPowerNotification(peripheralId: string) : Promise<boolean> {
+    startCadenceNotification(peripheralId: string) : Promise<boolean> {
       return new Promise((resolve, reject) => {
         super.startNotification(peripheralId, this.serviceUUID, '2a5b')
         .then(() => {
@@ -370,7 +370,7 @@ import {
       }); 
     }
   
-    stopInstantPowerNotification(peripheralId: string) : Promise<boolean> { 
+    stopCadenceNotification(peripheralId: string) : Promise<boolean> { 
       return new Promise( (resolve, reject) => {
         super.stopNotification(peripheralId, this.serviceUUID, '2a5b')
         .then(() => {
