@@ -12,6 +12,7 @@ const BleManagerModule = NativeModules.BleManager;
 const bleManagerEmitter = new NativeEventEmitter(BleManagerModule);
 
 import { EventEmitter  } from 'eventemitter3';
+import { Buffer } from 'buffer';
 
 // BLE service UUIDs we are interested in:
 // Heart Rate service = 180D
@@ -157,7 +158,6 @@ class BleSensors {
                         if(device.advertising.serviceUUIDs) {
                             console.log("serviceUUIDs = ", device.advertising.serviceUUIDs)
                             if( device.advertising.serviceUUIDs.includes(SupportedBleServices.CyclingPower) ) {
-                                console.log("found power meter!")
                                 list.CyclingPower.push(device)
                             } 
                             if( device.advertising.serviceUUIDs.includes(SupportedBleServices.CyclingSpeedAndCadence) ) {
@@ -506,4 +506,152 @@ class CadenceMeter extends GenericSensor {
 
 }
 
-export { BleSensors, PowerMeter, CadenceMeter}
+enum HeartRateCharacteristics {
+    HeartRateMeasurement = '00002a37-0000-1000-8000-00805f9b34fb'
+}
+
+type HeartRateMeasurement = {
+    sensorContact: boolean,
+    bpm: number,
+    rrInterval?: number[],
+    energyExpended?: number
+}
+
+class HeartRateMonitor extends GenericSensor {
+
+    constructor(address: string) {
+        super(address)
+        this.service = SupportedBleServices.HeartRate;
+        this.characteristic = HeartRateCharacteristics.HeartRateMeasurement;
+        bleManagerEmitter.addListener('BleManagerDidUpdateValueForCharacteristic', this._listenUpdateChangeOnCharAndEmitData);
+    }
+
+    _listenUpdateChangeOnCharAndEmitData = (data: any) => {
+        // listens for updates on BLE characteristics and emits a data event for only the HR data.
+        if (data.characteristic.toUpperCase() == this.fullUUID(HeartRateCharacteristics.HeartRateMeasurement)) {
+            const buf = Buffer.from(data.value);
+            const hrData = this.parseHeartRateMeasurement(buf)
+            this.emit('data', hrData);
+        }
+        
+      }
+
+
+    parseHeartRateMeasurement(data: Buffer): HeartRateMeasurement {
+        const flags = data[0];
+      
+        const isUint16MeasurementMask = 0x01;
+        const isContactDetectedMask = 0x06;
+        const isEnergyExpendedPresentMask = 0x08;
+        const isRRIntervalPresentMask = 0x10;
+      
+        let sensorContact: boolean | undefined;
+        let bpm: number | undefined;
+        const rrInterval: number[] = [];
+        let energyExpended: number | undefined;
+      
+        let measurementByteOffset = 1;
+        sensorContact = Boolean(flags & isContactDetectedMask);
+      
+        if (flags & isUint16MeasurementMask) {
+          bpm = data.readUInt16LE(measurementByteOffset);
+          measurementByteOffset += 2;
+        } else {
+          bpm = data[measurementByteOffset];
+          measurementByteOffset += 1;
+        }
+      
+        if (flags & isEnergyExpendedPresentMask) {
+          energyExpended = data.readUInt16LE(measurementByteOffset);
+          measurementByteOffset += 2;
+        }
+      
+        if (flags & isRRIntervalPresentMask) {
+          while (data.length >= measurementByteOffset + 2) {
+            rrInterval.push(data.readUInt16LE(measurementByteOffset));
+            measurementByteOffset += 2;
+          }
+        }
+      
+        return {
+          sensorContact,
+          bpm,
+          rrInterval,
+          energyExpended,
+        };
+      }
+      
+        
+}
+
+export { BleSensors, PowerMeter, CadenceMeter, HeartRateMonitor}
+
+  
+// parseCSCFeature(measurement: Buffer): CSCFeature {
+//     const value = measurement.readUInt16LE(0);
+//     const wheelRevSupported = (value & 0b1) !== 0;
+//     const crankRevSupported = (value & 0b10) !== 0;
+//     const multipleLocationsSupported = (value & 0b100) !== 0;
+//     return {
+//       wheelRevSupported,
+//       crankRevSupported,
+//       multipleLocationsSupported
+//     };
+// }
+      
+// parseCyclingPowerVector(data: Uint8Array): CyclingPowerVector {
+//     let flags = data[0];
+  
+//     let crank_revolutions_present = (flags & 0b1) !== 0;
+//     let first_crank_measurement_angle_present = (flags & 0b10) !== 0;
+//     let instantaneous_force_array_present = (flags & 0b100) !== 0;
+//     let instantaneous_torque_array_present = (flags & 0b1000) !== 0;
+//     let instantaneous_measurement_direction_value = (flags & 0b110000) >> 4;
+  
+//     let instantaneous_measurement_direction = InstantaneousMeasurementDirection.unknown;
+//     if (instantaneous_measurement_direction_value === 1) {
+//       instantaneous_measurement_direction = InstantaneousMeasurementDirection.tangential_component;
+//     } else if (instantaneous_measurement_direction_value === 2) {
+//       instantaneous_measurement_direction = InstantaneousMeasurementDirection.radial_component;
+//     } else if (instantaneous_measurement_direction_value === 3) {
+//       instantaneous_measurement_direction = InstantaneousMeasurementDirection.lateral_component;
+//     }
+  
+//     let byte_offset = 1;
+//     let cumulative_crank_revs: number | null;
+//     let last_crank_event_time: number | null;
+//     let first_crank_measurement_angle: number | null;
+//     let instantaneous_force_magnitudes: number[] = [];
+//     let instantaneous_torque_magnitudes: number[] = [];
+  
+//     if (crank_revolutions_present) {
+//       cumulative_crank_revs = new DataView(data.buffer, data.byteOffset + byte_offset, 2).getUint16(0, true);
+//       byte_offset += 2;
+//       last_crank_event_time = new DataView(data.buffer, data.byteOffset + byte_offset, 2).getUint16(0, true);
+//       byte_offset += 2;
+//     }
+  
+//     if (first_crank_measurement_angle_present) {
+//       first_crank_measurement_angle = new DataView(data.buffer, data.byteOffset + byte_offset, 2).getUint16(0, true);
+//       byte_offset += 2;
+//     }
+  
+//     for (let i = byte_offset; i < data.length; i += 2) {
+//       let element = new DataView(data.buffer, data.byteOffset + i, 2).getUint16(0, true);
+//       if (instantaneous_force_array_present) {
+//           instantaneous_force_magnitudes.push(element);
+//       } else if (instantaneous_torque_array_present) {
+//           instantaneous_torque_magnitudes.push(element);
+//       }
+//     }
+  
+//     return {
+//         instantaneous_measurement_direction,
+//         cumulative_crank_revs,
+//         last_crank_event_time,
+//         first_crank_measurement_angle,
+//         instantaneous_force_magnitudes,
+//         instantaneous_torque_magnitudes
+//     };
+  
+// }

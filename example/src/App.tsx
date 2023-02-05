@@ -1,26 +1,14 @@
 import React, { useEffect, useState } from 'react'
 import { Button, EmitterSubscription, SafeAreaView, StyleSheet, Text, View } from 'react-native'
-import { PowerMeters, BleSensors, PowerMeter, CadenceMeter } from 'react-native-cycling-sensors'
+import { BleSensors, PowerMeter, CadenceMeter, HeartRateMonitor } from 'react-native-cycling-sensors'
 
 const App = () => {
   const [isScanning, setIsScanning] = useState(false); 
-  const bleDevices = new PowerMeters() 
   
   const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
-  const startScan = () => {
-    if (!isScanning) {
-      bleDevices.scan().then(() => {
-        console.log('Scanning...');
-        setIsScanning(true);
-      }).catch(err => {
-        console.error(err);
-      });
-    }    
-  }
-
   const handleDiscoverPeripheral = (peripheral: any) => {
-    console.log(peripheral);
+    // console.log(peripheral);
   }
 
   const handlePowerData = (data: any) => {
@@ -31,33 +19,15 @@ const App = () => {
     console.log('CSC: ', data)
   }
 
+  const handleHrmData = (data: any) => {
+    console.log('HRM :', data)
+  }
 
-  // const handleStopScan = () => {
-  //   console.log('Scan is stopped');
-  //   setIsScanning(false);
-  // }
-
-  // const handleUpdateValueForCharacteristic = (data: any) => {
-  //   let charType = bleDevices.getCharacteristicType(data.characteristic)
-  //   console.log(charType)
-  //   switch (charType) {
-  //     case 'CyclingPowerMeasurement':
-  //       let dataArray = new Uint8Array(data.value)
-  //       let powerData = bleDevices.parseCyclingPowerMeasurement(dataArray)
-  //       console.log(powerData)
-  //       break;
-  //     case 'CyclingPowerVector':
-  //       console.log(data.value)
-  //       break;
-  //     default:
-  //       console.log('Unknown data')
-  //       break;
-  //   }
-  // }
+  const handleButton = () => {
+    console.log("button pressed");
+  }
 
   useEffect(() => {
-    let subscriptionStopScan: EmitterSubscription
-    let subscriptionDiscover: EmitterSubscription
 
     const startBleSensors = async () => {
       const bleSensor = new BleSensors()
@@ -68,22 +38,25 @@ const App = () => {
       await sleep(10000)
       const sensorList = await bleSensor.getDiscoveredSensors()
       console.log(sensorList)
-      const pm = new PowerMeter(sensorList.CyclingPower[0]?.id)
-      const csc = new CadenceMeter(sensorList.CyclingPower[0]?.id)
-      await pm.connect()
-      await csc.connect()
-      await pm.subscribe(handlePowerData)
-      await csc.subscribe(handleCscData)
+      // const pm = new PowerMeter(sensorList.CyclingPower[0]?.id)
+      // const csc = new CadenceMeter(sensorList.CyclingSpeedAndCadence[0]?.id)
+      const hrm = new HeartRateMonitor(sensorList.HeartRate[0]?.id)
+      //await pm.connect()
+      //await csc.connect()
+      await hrm.connect()
+      //await pm.subscribe(handlePowerData)
+      //await csc.subscribe(handleCscData)
+      await hrm.subscribe(handleHrmData)
       await sleep(5000)
-      await pm.disconnect()
-      await csc.disconnect()
+      //await pm.disconnect()
+      //await csc.disconnect()
+      await hrm.disconnect()
     };
   
     startBleSensors(); // run it, run it
   
     return () => {
       // this now gets called when the component unmounts
-      bleDevices.removeListeners([subscriptionStopScan, subscriptionDiscover]);
     };
   }, []);
 
@@ -93,7 +66,7 @@ const App = () => {
         <Text>Testing...</Text>
         <Button 
                 title={'Scan Bluetooth (' + (isScanning ? 'on' : 'off') + ')'}
-                onPress={() => startScan() } 
+                onPress={ handleButton } 
               />  
       </View>
     </SafeAreaView> 
