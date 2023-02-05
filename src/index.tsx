@@ -1,4 +1,3 @@
-import { BleCycling } from "./bleCycling";
-import PowerMeters from "./powerMeter";
+import { BleSensors, PowerMeter, CadenceMeter, HeartRateMonitor } from "./bleSensors";
 
-export { BleCycling, PowerMeters }
+export { BleSensors, PowerMeter, CadenceMeter, HeartRateMonitor }

@@ -157,6 +157,7 @@
     ]
   },
   "dependencies": {
+    "eventemitter3": "^5.0.0",
     "react-native-ble-manager": "^8.7.0"
   }
 }
