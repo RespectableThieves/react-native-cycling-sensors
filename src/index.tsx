@@ -1,3 +1,8 @@
-import { BleSensors, PowerMeter, CadenceMeter, HeartRateMonitor } from "./bleSensors";
+import {
+  BleSensors,
+  PowerMeter,
+  CadenceMeter,
+  HeartRateMonitor,
+} from './bleSensors';
 
-export { BleSensors, PowerMeter, CadenceMeter, HeartRateMonitor }
+export { BleSensors, PowerMeter, CadenceMeter, HeartRateMonitor };
