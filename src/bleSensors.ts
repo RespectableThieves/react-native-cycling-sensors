@@ -66,14 +66,13 @@ class BleSensors {
     return new Promise((resolve, reject) => {
       if (Platform.OS === 'android' && Platform.Version >= 23) {
         PermissionsAndroid.requestMultiple([
-          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-          PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION,
-          PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
+          // @ts-ignore
+          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION, // @ts-ignore
+          PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN, // @ts-ignore
           PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
         ]).then((result) => {
           if (
             result['android.permission.ACCESS_FINE_LOCATION'] &&
-            result['android.permission.ACCESS_COARSE_LOCATION'] &&
             result['android.permission.BLUETOOTH_SCAN'] &&
             result['android.permission.BLUETOOTH_CONNECT'] === 'granted'
           ) {
@@ -81,9 +80,9 @@ class BleSensors {
             console.log('Permissions already granted');
           } else {
             PermissionsAndroid.requestMultiple([
-              PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-              PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION,
-              PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
+              // @ts-ignore
+              PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION, // @ts-ignore
+              PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN, // @ts-ignore
               PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
             ]).then((result) => {
               if (result) {
@@ -217,7 +216,7 @@ type CSCMeasurement = {
 
 type CyclingPowerMeasurement = {
   instantaneous_power: number;
-  pedal_power_balance: number | null;
+  pedal_power_balance?: number | null;
   accumulated_torque: number | null;
   cumulative_wheel_revs: number | null;
   last_wheel_event_time: number | null;
@@ -437,10 +436,10 @@ class PowerMeter extends GenericSensor {
 
     const pedal_power_balance_included_flag = 1;
     const accumulated_torque_present = 1 << 2; /* eslint-disable */
-    const wheel_rev_included_flag = 1 << 4; /* eslint-disable */
-    const crank_rev_included_flag = 1 << 5; /* eslint-disable */
-    const extreme_force_included_flag = 1 << 6; /* eslint-disable */
-    const extreme_torque_included_flag = 1 << 7; /* eslint-disable */
+    // const wheel_rev_included_flag = 1 << 4; /* eslint-disable */
+    // const crank_rev_included_flag = 1 << 5; /* eslint-disable */
+    // const extreme_force_included_flag = 1 << 6; /* eslint-disable */
+    // const extreme_torque_included_flag = 1 << 7; /* eslint-disable */
     const extreme_angles_included_flag = 1 << 8;
     const top_dead_spot_included_flag = 1 << 9;
     const bottom_dead_spot_included_flag = 1 << 10;
@@ -469,7 +468,7 @@ class PowerMeter extends GenericSensor {
 
     byte_offset += 2;
     if (flags & pedal_power_balance_included_flag) {
-      pedal_power_balance = data[byte_offset];
+      pedal_power_balance = data[byte_offset] ? data[byte_offset] : null;
       byte_offset += 1;
     }
 
@@ -488,21 +487,21 @@ class PowerMeter extends GenericSensor {
     }
 
     if (flags & top_dead_spot_included_flag) {
-      const top_dead_spot_angle = new DataView(
+      top_dead_spot_angle = new DataView(
         data.slice(byte_offset, byte_offset + 2)
       ).getInt16(0, true);
       byte_offset += 2;
     }
 
     if (flags & bottom_dead_spot_included_flag) {
-      const bottom_dead_spot_angle = new DataView(
+      bottom_dead_spot_angle = new DataView(
         data.slice(byte_offset, byte_offset + 2)
       ).getInt16(0, true);
       byte_offset += 2;
     }
 
     if (flags & accumulated_energy_included_flag) {
-      const accumulated_energy = new DataView(
+      accumulated_energy = new DataView(
         data.slice(byte_offset, byte_offset + 2)
       ).getInt16(0, true);
     }
@@ -631,8 +630,8 @@ enum HeartRateCharacteristics {
 }
 
 type HeartRateMeasurement = {
-  sensorContact: boolean;
-  bpm: number;
+  sensorContact?: boolean;
+  bpm: number | undefined;
   rrInterval?: number[];
   energyExpended?: number;
 };
@@ -674,25 +673,27 @@ class HeartRateMonitor extends GenericSensor {
     let energyExpended: number | undefined;
 
     let measurementByteOffset = 1;
-    sensorContact = Boolean(flags & isContactDetectedMask);
+    if (flags) {
+      sensorContact = Boolean(flags & isContactDetectedMask);
 
-    if (flags & isUint16MeasurementMask) {
-      bpm = data.readUInt16LE(measurementByteOffset);
-      measurementByteOffset += 2;
-    } else {
-      bpm = data[measurementByteOffset];
-      measurementByteOffset += 1;
-    }
-
-    if (flags & isEnergyExpendedPresentMask) {
-      energyExpended = data.readUInt16LE(measurementByteOffset);
-      measurementByteOffset += 2;
-    }
-
-    if (flags & isRRIntervalPresentMask) {
-      while (data.length >= measurementByteOffset + 2) {
-        rrInterval.push(data.readUInt16LE(measurementByteOffset));
+      if (flags & isUint16MeasurementMask) {
+        bpm = data.readUInt16LE(measurementByteOffset);
         measurementByteOffset += 2;
+      } else {
+        bpm = data[measurementByteOffset];
+        measurementByteOffset += 1;
+      }
+
+      if (flags & isEnergyExpendedPresentMask) {
+        energyExpended = data.readUInt16LE(measurementByteOffset);
+        measurementByteOffset += 2;
+      }
+
+      if (flags & isRRIntervalPresentMask) {
+        while (data.length >= measurementByteOffset + 2) {
+          rrInterval.push(data.readUInt16LE(measurementByteOffset));
+          measurementByteOffset += 2;
+        }
       }
     }
 

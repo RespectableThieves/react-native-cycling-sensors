@@ -1,10 +1,6 @@
 import React, { useEffect } from 'react';
 import { Button, SafeAreaView, StyleSheet, Text, View } from 'react-native';
-import {
-  BleSensors,
-  PowerMeter,
-  HeartRateMonitor,
-} from 'react-native-cycling-sensors';
+import { BleSensors, PowerMeter } from 'react-native-cycling-sensors';
 
 const App = () => {
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -15,10 +11,6 @@ const App = () => {
 
   const handlePowerData = (data: any) => {
     console.log('Power: ', data);
-  };
-
-  const handleHrmData = (data: any) => {
-    console.log('HRM :', data);
   };
 
   const handleButton = () => {
@@ -39,20 +31,15 @@ const App = () => {
       await sleep(10000);
       const sensorList = await bleSensor.getDiscoveredSensors();
       console.log(sensorList);
-      const pm = new PowerMeter(sensorList.CyclingPower[0]?.id);
-
-      const hrm = new HeartRateMonitor(sensorList.HeartRate[0]?.id);
-      await pm.connect().catch((err) => handleError(err));
-
-      await hrm.connect().catch((err) => handleError(err));
-      pm.subscribe(handlePowerData);
-
-      hrm.subscribe(handleHrmData);
-      await sleep(5000);
-      await pm.getSensorLocation().catch((err) => handleError(err));
-      await sleep(5000);
-      await pm.disconnect().catch((err) => handleError(err));
-      await hrm.disconnect().catch((err) => handleError(err));
+      if (sensorList.CyclingPower[0]) {
+        const pm = new PowerMeter(sensorList.CyclingPower[0].id);
+        await pm.connect().catch((err) => handleError(err));
+        pm.subscribe(handlePowerData);
+        await sleep(5000);
+        await pm.getSensorLocation().catch((err) => handleError(err));
+        await sleep(5000);
+        await pm.disconnect().catch((err) => handleError(err));
+      }
     };
 
     startBleSensors(); // run it, run it
