@@ -20,7 +20,7 @@ npm install react-native-cycling-sensors
 
 ```js
 import React, { useEffect } from 'react';
-import { Button, SafeAreaView, Text, View } from 'react-native';
+import { Button, SafeAreaView, StyleSheet, Text, View } from 'react-native';
 import { BleSensors, PowerMeter } from 'react-native-cycling-sensors';
 
 const App = () => {
@@ -32,6 +32,10 @@ const App = () => {
 
   const handlePowerData = (data: any) => {
     console.log('Power: ', data);
+  };
+
+  const handleScanStop = () => {
+    console.log('Scanning Stopped');
   };
 
   const handleButton = () => {
@@ -49,15 +53,24 @@ const App = () => {
       await bleSensor.start();
       await bleSensor.startSensorDiscovery();
       bleSensor.subscribeToDiscovery(handleDiscoverPeripheral);
+      bleSensor.subscribeToDiscoveryStop(handleScanStop);
       await sleep(10000);
       const sensorList = await bleSensor.getDiscoveredSensors();
       console.log(sensorList);
-      if (sensorList.CyclingPower[0]) {
-        const pm = new PowerMeter(sensorList.CyclingPower[0].id);
+      if (sensorList[0]?.sensorType?.includes('CyclingPower')) {
+        console.log(sensorList[0]);
+        const pm = new PowerMeter(sensorList[0].id);
+        console.log(pm);
         await pm.connect().catch((err) => handleError(err));
         pm.subscribe(handlePowerData);
+        await sleep(2000);
+        const list = await bleSensor.getConnectedSensors();
+        console.log('Connected list: ', list);
         await sleep(5000);
-        await pm.getSensorLocation().catch((err) => handleError(err));
+        let sensorLocation = await pm
+          .getSensorLocation()
+          .catch((err) => handleError(err));
+        console.log('Sensor is on: ', sensorLocation);
         await sleep(5000);
         await pm.disconnect().catch((err) => handleError(err));
       }
@@ -71,7 +84,7 @@ const App = () => {
   }, []);
 
   return (
-    <SafeAreaView>
+    <SafeAreaView style={styles.container}>
       <View>
         <Text>Testing...</Text>
         <Button title={'Scan Bluetooth'} onPress={handleButton} />
@@ -79,6 +92,8 @@ const App = () => {
     </SafeAreaView>
   );
 };
+
+export default App
 ```
 
 ## Contributing
