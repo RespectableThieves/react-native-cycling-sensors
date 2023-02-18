@@ -13,6 +13,10 @@ const App = () => {
     console.log('Power: ', data);
   };
 
+  const handleScanStop = () => {
+    console.log('Scanning Stopped')
+  };
+
   const handleButton = () => {
     console.log('button pressed');
   };
@@ -28,6 +32,7 @@ const App = () => {
       await bleSensor.start();
       await bleSensor.startSensorDiscovery();
       bleSensor.subscribeToDiscovery(handleDiscoverPeripheral);
+      bleSensor.subscribeToDiscoveryStop(handleScanStop)
       await sleep(10000);
       const sensorList = await bleSensor.getDiscoveredSensors();
       console.log(sensorList);

@@ -147,6 +147,10 @@ class BleSensors {
     return bleManagerEmitter.addListener('BleManagerDiscoverPeripheral', func);
   }
 
+  subscribeToDiscoveryStop(func: any): EmitterSubscription {
+    return bleManagerEmitter.addListener('BleManagerStopScan', func);
+  }
+
   getDiscoveredSensors(): Promise<SensorList> {
     return new Promise((resolve, reject) => {
       BleManager.getDiscoveredPeripherals()
