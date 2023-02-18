@@ -40,6 +40,9 @@ const App = () => {
         const pm = new PowerMeter(sensorList.CyclingPower[0].id);
         await pm.connect().catch((err) => handleError(err));
         pm.subscribe(handlePowerData);
+        await(2000)
+        const list = await bleSensor.getConnectedSensors()
+        console.log('Connected list: ',list)
         await sleep(5000);
         await pm.getSensorLocation().catch((err) => handleError(err));
         await sleep(5000);

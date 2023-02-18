@@ -37,6 +37,10 @@ type SensorList = {
   HeartRate: Peripheral[];
 };
 
+interface typedPeripheral extends BleManager.Peripheral {
+  sensorType?: string[];
+}
+
 class BleSensors {
   serviceUUIDs: string[] = [];
 
@@ -194,6 +198,52 @@ class BleSensors {
           reject(err);
         });
     });
+  }
+
+  getConnectedSensors(): Promise<typedPeripheral[]> {
+    return new Promise((resolve, reject) => {
+      BleManager.getConnectedPeripherals([])
+        .then((peripheralsArray: Peripheral[]) => {
+          let connectedSensorsList = this._getPeripheralType(peripheralsArray)
+          resolve(connectedSensorsList)
+        })
+        .catch((err: Error) => {
+          console.log('Error getting connected peripherals: ' + err);
+          reject(err);
+        });
+    });
+  }
+
+  _getPeripheralType(list: Peripheral[]): typedPeripheral[] {
+      let connectedList: typedPeripheral[] = []
+      list.forEach((device) => {
+        if (device.advertising.serviceUUIDs) {
+          let tDevice: typedPeripheral = device;
+          tDevice.sensorType = []
+          if (
+            device.advertising.serviceUUIDs.includes(
+              SupportedBleServices.CyclingPower
+            )
+          ) { 
+            tDevice.sensorType.push('CyclingPower')
+          } 
+          if (
+            device.advertising.serviceUUIDs.includes(
+              SupportedBleServices.CyclingSpeedAndCadence
+            )
+          ) {
+            tDevice.sensorType.push('CyclingSpeedAndCadence')
+          } else if (
+            device.advertising.serviceUUIDs.includes(
+              SupportedBleServices.HeartRate
+            )
+          ) {
+            tDevice.sensorType.push('HeartRate')
+          }
+          connectedList.push(tDevice)
+        }
+      });
+      return connectedList
   }
 }
 
