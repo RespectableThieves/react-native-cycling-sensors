@@ -6,7 +6,7 @@ const App = () => {
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
   const handleDiscoverPeripheral = (peripheral: any) => {
-    // console.log(peripheral);
+    console.log(peripheral);
   };
 
   const handlePowerData = (data: any) => {
@@ -14,7 +14,7 @@ const App = () => {
   };
 
   const handleScanStop = () => {
-    console.log('Scanning Stopped')
+    console.log('Scanning Stopped');
   };
 
   const handleButton = () => {
@@ -32,22 +32,24 @@ const App = () => {
       await bleSensor.start();
       await bleSensor.startSensorDiscovery();
       bleSensor.subscribeToDiscovery(handleDiscoverPeripheral);
-      bleSensor.subscribeToDiscoveryStop(handleScanStop)
+      bleSensor.subscribeToDiscoveryStop(handleScanStop);
       await sleep(10000);
       const sensorList = await bleSensor.getDiscoveredSensors();
       console.log(sensorList);
       if (sensorList[0]?.sensorType?.includes('CyclingPower')) {
-        console.log(sensorList[0])
+        console.log(sensorList[0]);
         const pm = new PowerMeter(sensorList[0].id);
-        console.log(pm)
+        console.log(pm);
         await pm.connect().catch((err) => handleError(err));
-        // pm.subscribe(handlePowerData);
-        await(2000)
-        const list = await bleSensor.getConnectedSensors()
-        console.log('Connected list: ',list)
+        pm.subscribe(handlePowerData);
+        await sleep(2000);
+        const list = await bleSensor.getConnectedSensors();
+        console.log('Connected list: ', list);
         await sleep(5000);
-        let sensorLocation = await pm.getSensorLocation().catch((err) => handleError(err));
-        console.log('Sensor is on: ', sensorLocation)
+        let sensorLocation = await pm
+          .getSensorLocation()
+          .catch((err) => handleError(err));
+        console.log('Sensor is on: ', sensorLocation);
         await sleep(5000);
         await pm.disconnect().catch((err) => handleError(err));
       }
