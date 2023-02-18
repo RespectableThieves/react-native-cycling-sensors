@@ -31,12 +31,6 @@ enum SupportedBleServices {
   SensorLocation = '2a5d',
 }
 
-type SensorList = {
-  CyclingPower: Peripheral[];
-  CyclingSpeedAndCadence: Peripheral[];
-  HeartRate: Peripheral[];
-};
-
 interface typedPeripheral extends BleManager.Peripheral {
   sensorType?: string[];
 }
@@ -160,7 +154,7 @@ class BleSensors {
       BleManager.getDiscoveredPeripherals()
         .then((peripheralsArray: Peripheral[]) => {
           // console.log('Discovered peripherals: ', peripheralsArray);
-          let discovered = this._getPeripheralType(peripheralsArray)
+          let discovered = this._getPeripheralType(peripheralsArray);
           resolve(discovered);
         })
         .catch((err: Error) => {
@@ -174,8 +168,8 @@ class BleSensors {
     return new Promise((resolve, reject) => {
       BleManager.getConnectedPeripherals([])
         .then((peripheralsArray: Peripheral[]) => {
-          let connectedSensorsList = this._getPeripheralType(peripheralsArray)
-          resolve(connectedSensorsList)
+          let connectedSensorsList = this._getPeripheralType(peripheralsArray);
+          resolve(connectedSensorsList);
         })
         .catch((err: Error) => {
           console.log('Error getting connected peripherals: ' + err);
@@ -185,35 +179,35 @@ class BleSensors {
   }
 
   _getPeripheralType(list: Peripheral[]): typedPeripheral[] {
-      let connectedList: typedPeripheral[] = []
-      list.forEach((device) => {
-        if (device.advertising.serviceUUIDs) {
-          let tDevice: typedPeripheral = device;
-          tDevice.sensorType = []
-          if (
-            device.advertising.serviceUUIDs.includes(
-              SupportedBleServices.CyclingPower
-            )
-          ) { 
-            tDevice.sensorType.push('CyclingPower')
-          } 
-          if (
-            device.advertising.serviceUUIDs.includes(
-              SupportedBleServices.CyclingSpeedAndCadence
-            )
-          ) {
-            tDevice.sensorType.push('CyclingSpeedAndCadence')
-          } else if (
-            device.advertising.serviceUUIDs.includes(
-              SupportedBleServices.HeartRate
-            )
-          ) {
-            tDevice.sensorType.push('HeartRate')
-          }
-          connectedList.push(tDevice)
+    let connectedList: typedPeripheral[] = [];
+    list.forEach((device) => {
+      if (device.advertising.serviceUUIDs) {
+        let tDevice: typedPeripheral = device;
+        tDevice.sensorType = [];
+        if (
+          device.advertising.serviceUUIDs.includes(
+            SupportedBleServices.CyclingPower
+          )
+        ) {
+          tDevice.sensorType.push('CyclingPower');
         }
-      });
-      return connectedList
+        if (
+          device.advertising.serviceUUIDs.includes(
+            SupportedBleServices.CyclingSpeedAndCadence
+          )
+        ) {
+          tDevice.sensorType.push('CyclingSpeedAndCadence');
+        } else if (
+          device.advertising.serviceUUIDs.includes(
+            SupportedBleServices.HeartRate
+          )
+        ) {
+          tDevice.sensorType.push('HeartRate');
+        }
+        connectedList.push(tDevice);
+      }
+    });
+    return connectedList;
   }
 }
 
@@ -564,7 +558,7 @@ class PowerMeter extends GenericSensor {
                 .then((readData) => {
                   const buffer = Buffer.from(readData);
                   const sensorData = buffer.readUInt8(0);
-                  let location = SensorLocation[sensorData]
+                  let location = SensorLocation[sensorData];
                   resolve(location);
                 })
                 .catch((error) => {
