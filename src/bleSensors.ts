@@ -548,7 +548,7 @@ class PowerMeter extends GenericSensor {
     };
   }
 
-  getSensorLocation() {
+  getSensorLocation(): Promise<any> {
     return new Promise((resolve, reject) => {
       if (this.isConnected) {
         BleManager.retrieveServices(this.address)
@@ -562,19 +562,16 @@ class PowerMeter extends GenericSensor {
               console.log('Sensor location feature supported');
               BleManager.read(this.address, this.service, '2a5d')
                 .then((readData) => {
-                  // TODO: fix the below
-                  console.log('Read Sensor Location: ' + readData);
                   const buffer = Buffer.from(readData);
                   const sensorData = buffer.readUInt8(0);
-                  console.log('sensor location parsed: ', sensorData);
-                  resolve(SensorLocation[sensorData]);
+                  let location = SensorLocation[sensorData]
+                  resolve(location);
                 })
                 .catch((error) => {
                   console.log(error);
                   resolve(error);
                 });
             } else reject(new Error('Sensor Location not supported'));
-            resolve(true);
           })
           .catch((err) => {
             console.log(err);
