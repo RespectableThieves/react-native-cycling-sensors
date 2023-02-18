@@ -6,7 +6,7 @@ const App = () => {
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
   const handleDiscoverPeripheral = (peripheral: any) => {
-    console.log(peripheral);
+    // console.log(peripheral);
   };
 
   const handlePowerData = (data: any) => {
@@ -36,8 +36,10 @@ const App = () => {
       await sleep(10000);
       const sensorList = await bleSensor.getDiscoveredSensors();
       console.log(sensorList);
-      if (sensorList.CyclingPower[0]) {
-        const pm = new PowerMeter(sensorList.CyclingPower[0].id);
+      if (sensorList[0]?.sensorType?.includes('CyclingPower')) {
+        console.log(sensorList[0])
+        const pm = new PowerMeter(sensorList[0].id);
+        console.log(pm)
         await pm.connect().catch((err) => handleError(err));
         pm.subscribe(handlePowerData);
         await(2000)

@@ -155,43 +155,13 @@ class BleSensors {
     return bleManagerEmitter.addListener('BleManagerStopScan', func);
   }
 
-  getDiscoveredSensors(): Promise<SensorList> {
+  getDiscoveredSensors(): Promise<typedPeripheral[]> {
     return new Promise((resolve, reject) => {
       BleManager.getDiscoveredPeripherals()
         .then((peripheralsArray: Peripheral[]) => {
-          console.log('Discovered peripherals: ', peripheralsArray);
-          let list: SensorList = {
-            CyclingPower: [],
-            CyclingSpeedAndCadence: [],
-            HeartRate: [],
-          };
-          peripheralsArray.forEach((device) => {
-            if (device.advertising.serviceUUIDs) {
-              console.log('serviceUUIDs = ', device.advertising.serviceUUIDs);
-              if (
-                device.advertising.serviceUUIDs.includes(
-                  SupportedBleServices.CyclingPower
-                )
-              ) {
-                list.CyclingPower.push(device);
-              }
-              if (
-                device.advertising.serviceUUIDs.includes(
-                  SupportedBleServices.CyclingSpeedAndCadence
-                )
-              ) {
-                list.CyclingSpeedAndCadence.push(device);
-              }
-              if (
-                device.advertising.serviceUUIDs.includes(
-                  SupportedBleServices.HeartRate
-                )
-              ) {
-                list.HeartRate.push(device);
-              }
-            }
-          });
-          resolve(list);
+          // console.log('Discovered peripherals: ', peripheralsArray);
+          let discovered = this._getPeripheralType(peripheralsArray)
+          resolve(discovered);
         })
         .catch((err: Error) => {
           console.log('Error getting discovered peripherals: ' + err);
