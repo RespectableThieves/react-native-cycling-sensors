@@ -37,6 +37,10 @@ type SensorList = {
   HeartRate: Peripheral[];
 };
 
+interface typedPeripheral extends BleManager.Peripheral {
+  sensorType?: string[];
+}
+
 class BleSensors {
   serviceUUIDs: string[] = [];
 
@@ -151,49 +155,65 @@ class BleSensors {
     return bleManagerEmitter.addListener('BleManagerStopScan', func);
   }
 
-  getDiscoveredSensors(): Promise<SensorList> {
+  getDiscoveredSensors(): Promise<typedPeripheral[]> {
     return new Promise((resolve, reject) => {
       BleManager.getDiscoveredPeripherals()
         .then((peripheralsArray: Peripheral[]) => {
-          console.log('Discovered peripherals: ', peripheralsArray);
-          let list: SensorList = {
-            CyclingPower: [],
-            CyclingSpeedAndCadence: [],
-            HeartRate: [],
-          };
-          peripheralsArray.forEach((device) => {
-            if (device.advertising.serviceUUIDs) {
-              console.log('serviceUUIDs = ', device.advertising.serviceUUIDs);
-              if (
-                device.advertising.serviceUUIDs.includes(
-                  SupportedBleServices.CyclingPower
-                )
-              ) {
-                list.CyclingPower.push(device);
-              }
-              if (
-                device.advertising.serviceUUIDs.includes(
-                  SupportedBleServices.CyclingSpeedAndCadence
-                )
-              ) {
-                list.CyclingSpeedAndCadence.push(device);
-              }
-              if (
-                device.advertising.serviceUUIDs.includes(
-                  SupportedBleServices.HeartRate
-                )
-              ) {
-                list.HeartRate.push(device);
-              }
-            }
-          });
-          resolve(list);
+          // console.log('Discovered peripherals: ', peripheralsArray);
+          let discovered = this._getPeripheralType(peripheralsArray)
+          resolve(discovered);
         })
         .catch((err: Error) => {
           console.log('Error getting discovered peripherals: ' + err);
           reject(err);
         });
     });
+  }
+
+  getConnectedSensors(): Promise<typedPeripheral[]> {
+    return new Promise((resolve, reject) => {
+      BleManager.getConnectedPeripherals([])
+        .then((peripheralsArray: Peripheral[]) => {
+          let connectedSensorsList = this._getPeripheralType(peripheralsArray)
+          resolve(connectedSensorsList)
+        })
+        .catch((err: Error) => {
+          console.log('Error getting connected peripherals: ' + err);
+          reject(err);
+        });
+    });
+  }
+
+  _getPeripheralType(list: Peripheral[]): typedPeripheral[] {
+      let connectedList: typedPeripheral[] = []
+      list.forEach((device) => {
+        if (device.advertising.serviceUUIDs) {
+          let tDevice: typedPeripheral = device;
+          tDevice.sensorType = []
+          if (
+            device.advertising.serviceUUIDs.includes(
+              SupportedBleServices.CyclingPower
+            )
+          ) { 
+            tDevice.sensorType.push('CyclingPower')
+          } 
+          if (
+            device.advertising.serviceUUIDs.includes(
+              SupportedBleServices.CyclingSpeedAndCadence
+            )
+          ) {
+            tDevice.sensorType.push('CyclingSpeedAndCadence')
+          } else if (
+            device.advertising.serviceUUIDs.includes(
+              SupportedBleServices.HeartRate
+            )
+          ) {
+            tDevice.sensorType.push('HeartRate')
+          }
+          connectedList.push(tDevice)
+        }
+      });
+      return connectedList
   }
 }
 
