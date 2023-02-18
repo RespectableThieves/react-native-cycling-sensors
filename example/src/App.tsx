@@ -41,12 +41,13 @@ const App = () => {
         const pm = new PowerMeter(sensorList[0].id);
         console.log(pm)
         await pm.connect().catch((err) => handleError(err));
-        pm.subscribe(handlePowerData);
+        // pm.subscribe(handlePowerData);
         await(2000)
         const list = await bleSensor.getConnectedSensors()
         console.log('Connected list: ',list)
         await sleep(5000);
-        await pm.getSensorLocation().catch((err) => handleError(err));
+        let sensorLocation = await pm.getSensorLocation().catch((err) => handleError(err));
+        console.log('Sensor is on: ', sensorLocation)
         await sleep(5000);
         await pm.disconnect().catch((err) => handleError(err));
       }
