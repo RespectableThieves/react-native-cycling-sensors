@@ -286,7 +286,7 @@ enum SensorLocation {
 }
 
 class GenericSensor extends EventEmitter {
-  address: string;
+  _address: string;
   isConnecting: boolean;
   isConnected: boolean;
   isNotifying: boolean;
@@ -294,9 +294,9 @@ class GenericSensor extends EventEmitter {
   service: string;
   services: string[];
 
-  constructor(address: string) {
+  constructor(address: string = '') {
     super();
-    this.address = address;
+    this._address = address;
     this.isConnecting = false;
     this.isConnected = false;
     this.isNotifying = false;
@@ -305,14 +305,22 @@ class GenericSensor extends EventEmitter {
     this.services = [];
   }
 
+  public get address() {
+    return this._address;
+  }
+
+  public set address(theAddress: string) {
+      this._address = theAddress;
+  }
+
   connect(): Promise<BleManager.PeripheralInfo> {
     this.isConnecting = true;
     return new Promise((resolve, reject) => {
-      BleManager.connect(this.address)
+      BleManager.connect(this._address)
         .then(() => {
           console.log('Connected success.');
           this.isConnected = true;
-          return BleManager.retrieveServices(this.address);
+          return BleManager.retrieveServices(this._address);
         })
         .then((peripheralInfo: BleManager.PeripheralInfo) => {
           console.log('Connected peripheralInfo: ', peripheralInfo);
@@ -323,7 +331,7 @@ class GenericSensor extends EventEmitter {
           return peripheralInfo;
         })
         .then((peripheralInfo) => {
-          this.startNotification(this.address)
+          this.startNotification(this._address)
             .then(() => {
               this.isNotifying = true;
               resolve(peripheralInfo);
@@ -343,15 +351,15 @@ class GenericSensor extends EventEmitter {
   disconnect(): Promise<boolean> {
     return new Promise((resolve, reject) => {
       if (this.isNotifying) {
-        this.stopNotification(this.address)
+        this.stopNotification(this._address)
           .then(() => {
-            console.log('Stopped notifictions on: ', this.address);
+            console.log('Stopped notifictions on: ', this._address);
           })
           .catch((err) => {
             reject(err);
           });
       }
-      BleManager.disconnect(this.address)
+      BleManager.disconnect(this._address)
         .then(() => {
           console.log('Disconnected');
           resolve(true);
@@ -371,7 +379,7 @@ class GenericSensor extends EventEmitter {
         this.characteristic
       )
         .then(() => {
-          console.log('Notifications started on: ', this.address);
+          console.log('Notifications started on: ', this._address);
           this.isNotifying = true;
           resolve(true);
         })
@@ -389,7 +397,7 @@ class GenericSensor extends EventEmitter {
         this.characteristic
       )
         .then(() => {
-          console.log('Notifications stopped on: ', this.address);
+          console.log('Notifications stopped on: ', this._address);
           this.isNotifying = false;
           resolve(true);
         })
@@ -423,7 +431,7 @@ class GenericSensor extends EventEmitter {
 
 class PowerMeter extends GenericSensor {
   // TODO: Implement CSC for power meters that have '2a5d` char on the 1818 power service
-  constructor(address: string) {
+  constructor(address: string = '') {
     super(address);
     this.service = SupportedBleServices.CyclingPower;
     this.characteristic = CyclingPowerCharacteristics.CyclingPowerMeasurement;
@@ -545,7 +553,7 @@ class PowerMeter extends GenericSensor {
   getSensorLocation(): Promise<any> {
     return new Promise((resolve, reject) => {
       if (this.isConnected) {
-        BleManager.retrieveServices(this.address)
+        BleManager.retrieveServices(this._address)
           .then((peripheralInfo) => {
             // Success code
             console.log('Services:', peripheralInfo.services);
@@ -554,7 +562,7 @@ class PowerMeter extends GenericSensor {
               : [];
             if (charStrings.includes('2a5d')) {
               console.log('Sensor location feature supported');
-              BleManager.read(this.address, this.service, '2a5d')
+              BleManager.read(this._address, this.service, '2a5d')
                 .then((readData) => {
                   const buffer = Buffer.from(readData);
                   const sensorData = buffer.readUInt8(0);
@@ -579,7 +587,7 @@ class PowerMeter extends GenericSensor {
 }
 
 class CadenceMeter extends GenericSensor {
-  constructor(address: string) {
+  constructor(address: string = '') {
     super(address);
     this.service = SupportedBleServices.CyclingSpeedAndCadence;
     this.characteristic = CyclingPowerCharacteristics.CyclingPowerVector;
@@ -652,7 +660,7 @@ type HeartRateMeasurement = {
 };
 
 class HeartRateMonitor extends GenericSensor {
-  constructor(address: string) {
+  constructor(address: string = '') {
     super(address);
     this.service = SupportedBleServices.HeartRate;
     this.characteristic = HeartRateCharacteristics.HeartRateMeasurement;
