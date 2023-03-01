@@ -77,7 +77,8 @@
   },
   "peerDependencies": {
     "react": "*",
-    "react-native": "*"
+    "react-native": "*",
+    "react-native-ble-manager": "^8.8.0"
   },
   "engines": {
     "node": ">= 16.0.0"
