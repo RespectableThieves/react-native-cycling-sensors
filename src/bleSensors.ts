@@ -209,6 +209,19 @@ class BleSensors {
     });
     return connectedList;
   }
+  disconnect(address): Promise<boolean> {
+    return new Promise((resolve, reject) => {
+      BleManager.disconnect(address)
+        .then(() => {
+          console.log('Disconnected');
+          resolve(true);
+        })
+        .catch((err: Error) => {
+          // console.log('Disconnected error:',err);
+          reject(err);
+        });
+    });
+  }
 }
 
 enum CyclingPowerCharacteristics {
