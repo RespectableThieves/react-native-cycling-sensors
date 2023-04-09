@@ -209,7 +209,7 @@ class BleSensors {
     });
     return connectedList;
   }
-  disconnect(address): Promise<boolean> {
+  disconnect(address: string): Promise<boolean> {
     return new Promise((resolve, reject) => {
       BleManager.disconnect(address)
         .then(() => {
@@ -323,7 +323,7 @@ class GenericSensor extends EventEmitter {
   }
 
   public set address(theAddress: string) {
-      this._address = theAddress;
+    this._address = theAddress;
   }
 
   connect(): Promise<BleManager.PeripheralInfo> {
@@ -666,10 +666,10 @@ enum HeartRateCharacteristics {
 }
 
 type HeartRateMeasurement = {
-  sensorContact?: boolean;
+  sensorContact: boolean | undefined;
   bpm: number | undefined;
-  rrInterval?: number[];
-  energyExpended?: number;
+  rrInterval: number[] | undefined;
+  energyExpended: number | undefined;
 };
 
 class HeartRateMonitor extends GenericSensor {
@@ -689,50 +689,62 @@ class HeartRateMonitor extends GenericSensor {
       data.characteristic.toUpperCase() ==
       this.fullUUID(HeartRateCharacteristics.HeartRateMeasurement)
     ) {
+      console.log(data.value)
       const buf = Buffer.from(data.value);
       const hrData = this.parseHeartRateMeasurement(buf);
+      
       this.emit('data', hrData);
     }
   };
 
   parseHeartRateMeasurement(data: Buffer): HeartRateMeasurement {
-    const flags = data[0];
+    if (data.length === 0) {
+      return {
+        sensorContact: undefined,
+        bpm: undefined,
+        rrInterval: undefined,
+        energyExpended: undefined,
+      };
+    }
 
+    const flags = data[0] as number;
+  
     const isUint16MeasurementMask = 0x01;
     const isContactDetectedMask = 0x06;
     const isEnergyExpendedPresentMask = 0x08;
     const isRRIntervalPresentMask = 0x10;
-
+  
     let sensorContact: boolean | undefined;
     let bpm: number | undefined;
-    const rrInterval: number[] = [];
+    let rrInterval: number[] | undefined = [];
     let energyExpended: number | undefined;
-
+  
     let measurementByteOffset = 1;
-    if (flags) {
-      sensorContact = Boolean(flags & isContactDetectedMask);
-
-      if (flags & isUint16MeasurementMask) {
-        bpm = data.readUInt16LE(measurementByteOffset);
-        measurementByteOffset += 2;
-      } else {
-        bpm = data[measurementByteOffset];
-        measurementByteOffset += 1;
-      }
-
-      if (flags & isEnergyExpendedPresentMask) {
-        energyExpended = data.readUInt16LE(measurementByteOffset);
-        measurementByteOffset += 2;
-      }
-
-      if (flags & isRRIntervalPresentMask) {
-        while (data.length >= measurementByteOffset + 2) {
-          rrInterval.push(data.readUInt16LE(measurementByteOffset));
-          measurementByteOffset += 2;
-        }
-      }
+    
+    sensorContact = Boolean(flags & isContactDetectedMask);
+  
+    if (flags & isUint16MeasurementMask) {
+      bpm = data.readUInt16LE(measurementByteOffset);
+      measurementByteOffset += 2;
+    } else {
+      bpm = data[measurementByteOffset];
+      measurementByteOffset += 1;
     }
-
+  
+    if (flags & isEnergyExpendedPresentMask) {
+      energyExpended = data.readUInt16LE(measurementByteOffset);
+      measurementByteOffset += 2;
+    }
+  
+    if (flags & isRRIntervalPresentMask) {
+      while (data.length >= measurementByteOffset + 2) {
+        rrInterval.push(data.readUInt16LE(measurementByteOffset) / 1024);
+        measurementByteOffset += 2;
+      }
+    } else {
+      rrInterval = undefined;
+    }
+  
     return {
       sensorContact,
       bpm,
