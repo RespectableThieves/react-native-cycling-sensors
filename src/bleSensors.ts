@@ -306,6 +306,7 @@ class GenericSensor extends EventEmitter {
   characteristic: string;
   service: string;
   services: string[];
+  listener: any;
 
   constructor(address: string = '') {
     super();
@@ -316,6 +317,7 @@ class GenericSensor extends EventEmitter {
     this.characteristic = '';
     this.service = '';
     this.services = [];
+    this.listener = null;
   }
 
   public get address() {
@@ -372,6 +374,9 @@ class GenericSensor extends EventEmitter {
             reject(err);
           });
       }
+      if (!(this.listener == null)) {
+        this.listener.remove();
+      }
       BleManager.disconnect(this._address)
         .then(() => {
           console.log('Disconnected');
@@ -425,6 +430,13 @@ class GenericSensor extends EventEmitter {
     this.on('data', listener);
   }
 
+  unsubscribe() {
+    if (!(this.listener == null)) {
+      this.listener.remove();
+      console.log('listner removed');
+    }
+  }
+
   /**
    * Converts UUID to full 128bit.
    *
@@ -448,7 +460,7 @@ class PowerMeter extends GenericSensor {
     super(address);
     this.service = SupportedBleServices.CyclingPower;
     this.characteristic = CyclingPowerCharacteristics.CyclingPowerMeasurement;
-    bleManagerEmitter.addListener(
+    this.listener = bleManagerEmitter.addListener(
       'BleManagerDidUpdateValueForCharacteristic',
       this._listenUpdateChangeOnCharAndEmitData
     );
@@ -604,7 +616,7 @@ class CadenceMeter extends GenericSensor {
     super(address);
     this.service = SupportedBleServices.CyclingSpeedAndCadence;
     this.characteristic = CyclingPowerCharacteristics.CyclingPowerVector;
-    bleManagerEmitter.addListener(
+    this.listener = bleManagerEmitter.addListener(
       'BleManagerDidUpdateValueForCharacteristic',
       this._listenUpdateChangeOnCharAndEmitData
     );
@@ -677,7 +689,7 @@ class HeartRateMonitor extends GenericSensor {
     super(address);
     this.service = SupportedBleServices.HeartRate;
     this.characteristic = HeartRateCharacteristics.HeartRateMeasurement;
-    bleManagerEmitter.addListener(
+    this.listener = bleManagerEmitter.addListener(
       'BleManagerDidUpdateValueForCharacteristic',
       this._listenUpdateChangeOnCharAndEmitData
     );

@@ -39,7 +39,7 @@ const App = () => {
       if (sensorList[0]?.sensorType?.includes('CyclingPower')) {
         console.log(sensorList[0]);
         const pm = new PowerMeter();
-        pm.address = sensorList[0].id
+        pm.address = sensorList[0].id;
         console.log(pm);
         await pm.connect().catch((err) => handleError(err));
         pm.subscribe(handlePowerData);
@@ -52,6 +52,7 @@ const App = () => {
           .catch((err) => handleError(err));
         console.log('Sensor is on: ', sensorLocation);
         await sleep(5000);
+        pm.unsubscribe();
         await pm.disconnect().catch((err) => handleError(err));
       }
     };
