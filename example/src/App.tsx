@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { Button, SafeAreaView, StyleSheet, Text, View } from 'react-native';
-import { BleSensors, PowerMeter } from 'react-native-cycling-sensors';
+import { BleSensors, HeartRateMonitor } from 'react-native-cycling-sensors';
 
 const App = () => {
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -31,31 +31,42 @@ const App = () => {
       await bleSensor.requestPermissions();
       await bleSensor.start();
       await bleSensor.startSensorDiscovery();
-      bleSensor.subscribeToDiscovery(handleDiscoverPeripheral);
-      bleSensor.subscribeToDiscoveryStop(handleScanStop);
+      let sensorDiscoverySub = bleSensor.subscribeToDiscovery(
+        handleDiscoverPeripheral
+      );
+      let sensorDiscoveryStopSub =
+        bleSensor.subscribeToDiscoveryStop(handleScanStop);
       await sleep(10000);
       const sensorList = await bleSensor.getDiscoveredSensors();
       console.log(sensorList);
-      if (sensorList[0]?.sensorType?.includes('CyclingPower')) {
-        console.log(sensorList[0]);
-        const pm = new PowerMeter();
-        pm.address = sensorList[0].id;
-        console.log(pm);
-        await pm.connect().catch((err) => handleError(err));
-        pm.subscribe(handlePowerData);
-        await sleep(2000);
-        const list = await bleSensor.getConnectedSensors();
-        console.log('Connected list: ', list);
-        await sleep(5000);
-        let sensorLocation = await pm
-          .getSensorLocation()
-          .catch((err) => handleError(err));
-        console.log('Sensor is on: ', sensorLocation);
-        await sleep(5000);
-        pm.unsubscribe();
-        await pm.disconnect().catch((err) => handleError(err));
+      // if (sensorList[0]?.sensorType?.includes('HeartRate')) {
+      console.log(sensorList[0]);
+      const hrm = new HeartRateMonitor();
+      hrm.address = 'F0:99:19:59:B4:00';
+      console.log(hrm);
+
+      try {
+        await hrm.connect();
+      } catch (error) {
+        console.log(error);
+        hrm.disconnect();
       }
+      hrm.subscribe(handlePowerData);
+      await sleep(2000);
+      const list = await bleSensor
+        .getConnectedSensors()
+        .catch((err) => handleError(err));
+      console.log('Connected list: ', list);
+      await sleep(5000);
+      // await hrm.stopNotification(hrm._address).catch((err) => handleError(err));
+      // await sleep(5000)
+      console.log('just before disconnect');
+      await hrm.disconnect().catch((err) => handleError(err));
+      await bleSensor.stopSensorDiscovery();
+      sensorDiscoverySub.remove();
+      sensorDiscoveryStopSub.remove();
     };
+    // };
 
     startBleSensors(); // run it, run it
 

@@ -365,15 +365,16 @@ class GenericSensor extends EventEmitter {
 
   disconnect(): Promise<boolean> {
     return new Promise((resolve, reject) => {
-      if (this.isNotifying) {
-        this.stopNotification(this._address)
-          .then(() => {
-            console.log('Stopped notifictions on: ', this._address);
-          })
-          .catch((err) => {
-            reject(err);
-          });
-      }
+      // if (this.isNotifying) {
+      console.log('disconnect called....');
+      this.stopNotification(this._address)
+        .then(() => {
+          console.log('Stopped notifictions on: ', this._address);
+        })
+        .catch((err) => {
+          reject(err);
+        });
+      // }
       if (!(this.listener == null)) {
         this.listener.remove();
       }
