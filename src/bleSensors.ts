@@ -224,11 +224,13 @@ class BleSensors {
   }
 }
 
-enum CyclingPowerCharacteristics {
+enum SupportedCharacteristics {
   CyclingPowerMeasurement = '00002a63-0000-1000-8000-00805f9b34fb',
   CyclingPowerFeature = '00002a65-0000-1000-8000-00805f9b34fb',
   CyclingPowerVector = '00002a64-0000-1000-8000-00805f9b34fb',
   CyclingPowerControlPoint = '00002a66-0000-1000-8000-00805f9b34fb',
+  CSCMeasurement = '00002a5b-0000-1000-8000-00805f9b34fb',
+  HeartRateMeasurement = '00002a37-0000-1000-8000-00805f9b34fb',
   SensorLocation = '00002a5d-0000-1000-8000-00805f9b34fb',
 }
 
@@ -237,13 +239,8 @@ type CSCMeasurement = {
   lastWheelEventTime: number | null;
   cumulativeCrankRevs: number | null;
   lastCrankEventTime: number | null;
+  cadence: number | null;
 };
-
-// type CSCFeature = {
-//     wheelRevSupported: boolean,
-//     crankRevSupported: boolean,
-//     multipleLocationsSupported: boolean
-//   }
 
 type CyclingPowerMeasurement = {
   instantaneous_power: number;
@@ -261,22 +258,6 @@ type CyclingPowerMeasurement = {
   bottom_dead_spot_angle: number | null;
   accumulated_energy: number | null;
 };
-
-// type CyclingPowerVector = {
-//     instantaneous_measurement_direction: InstantaneousMeasurementDirection,
-//     cumulative_crank_revs?: number,
-//     last_crank_event_time?: number,
-//     first_crank_measurement_angle?: number,
-//     instantaneous_force_magnitudes: number[],
-//     instantaneous_torque_magnitudes: number[]
-//   };
-
-// enum InstantaneousMeasurementDirection {
-//     unknown,
-//     tangential_component,
-//     radial_component,
-//     lateral_component
-//   };
 
 enum SensorLocation {
   other = 1,
@@ -391,23 +372,17 @@ class GenericSensor extends EventEmitter {
     return BleManager.isPeripheralConnected(this._address, []);
   }
 
-  startNotification(peripheralId: string): Promise<boolean> {
-    return new Promise((resolve, reject) => {
-      BleManager.startNotification(
-        peripheralId,
-        this.service,
-        this.characteristic
-      )
-        .then(() => {
-          console.log('Notifications started on: ', this._address);
-          this.isNotifying = true;
-          resolve(true);
-        })
-        .catch((err) => {
-          reject(err);
-        });
-    });
+  async startNotification(peripheralId: string): Promise<boolean> {
+    try {
+      await BleManager.startNotification(peripheralId, this.service, this.characteristic);
+      console.log('Notifications started on: ', this._address);
+      this.isNotifying = true;
+      return true;
+    } catch (err) {
+      throw err;
+    }
   }
+  
 
   stopNotification(peripheralId: string): Promise<boolean> {
     return new Promise((resolve, reject) => {
@@ -457,11 +432,11 @@ class GenericSensor extends EventEmitter {
 }
 
 class PowerMeter extends GenericSensor {
-  // TODO: Implement CSC for power meters that have '2a5d` char on the 1818 power service
+  // TODO: Implement CSC for power meters that have PowerVector char on the 1818 power service
   constructor(address: string = '') {
     super(address);
     this.service = SupportedBleServices.CyclingPower;
-    this.characteristic = CyclingPowerCharacteristics.CyclingPowerMeasurement;
+    this.characteristic = SupportedCharacteristics.CyclingPowerMeasurement;
     this.listener = bleManagerEmitter.addListener(
       'BleManagerDidUpdateValueForCharacteristic',
       this._listenUpdateChangeOnCharAndEmitData
@@ -473,12 +448,15 @@ class PowerMeter extends GenericSensor {
     // console.log('Received data from ' + data.peripheral + ' characteristic ' + data.characteristic, data.value);
     if (
       data.characteristic.toUpperCase() ===
-      this.fullUUID(CyclingPowerCharacteristics.CyclingPowerMeasurement)
+      this.fullUUID(SupportedCharacteristics.CyclingPowerMeasurement)
     ) {
       let dataArray = new Uint8Array(data.value);
       const powerData = this.parseCyclingPowerMeasurement(dataArray);
       this.emit('data', powerData);
-    }
+    } 
+    console.log(data.value);
+
+    
   };
 
   parseCyclingPowerMeasurement(data: Uint8Array): CyclingPowerMeasurement {
@@ -610,10 +588,13 @@ class PowerMeter extends GenericSensor {
 }
 
 class CadenceMeter extends GenericSensor {
+  previousCrankRevs!: number | null;
+  previousCrankEventTime!: number | null;
+  
   constructor(address: string = '') {
     super(address);
     this.service = SupportedBleServices.CyclingSpeedAndCadence;
-    this.characteristic = CyclingPowerCharacteristics.CyclingPowerVector;
+    this.characteristic = SupportedCharacteristics.CSCMeasurement;
     this.listener = bleManagerEmitter.addListener(
       'BleManagerDidUpdateValueForCharacteristic',
       this._listenUpdateChangeOnCharAndEmitData
@@ -625,7 +606,7 @@ class CadenceMeter extends GenericSensor {
     // console.log('Received data from ' + data.peripheral + ' characteristic ' + data.characteristic, data.value);
     if (
       data.characteristic.toUpperCase() ==
-      this.fullUUID(CyclingPowerCharacteristics.CyclingPowerMeasurement)
+      this.fullUUID(SupportedCharacteristics.CSCMeasurement)
     ) {
       const cscData = this.parseCSCMeasurement(data.value);
       this.emit('data', cscData);
@@ -662,17 +643,33 @@ class CadenceMeter extends GenericSensor {
         .reduce((p, c, i) => p + (c << (i * 8)), 0);
     }
 
+    let cadence: number | null = null;
+
+    if (
+      cumulativeCrankRevs !== null &&
+      lastCrankEventTime !== null &&
+      this.previousCrankRevs !== null &&
+      this.previousCrankEventTime !== null
+    ) {
+      const crankRevsDifference = cumulativeCrankRevs - this.previousCrankRevs;
+      const crankEventTimeDifference = (lastCrankEventTime - this.previousCrankEventTime) / 1024;
+
+      if (crankEventTimeDifference > 0) {
+        cadence = (crankRevsDifference / crankEventTimeDifference) * 60;
+      }
+    }
+
+  this.previousCrankRevs = cumulativeCrankRevs;
+  this.previousCrankEventTime = lastCrankEventTime;
+
     return {
       cumulativeWheelRevs,
       lastWheelEventTime,
       cumulativeCrankRevs,
       lastCrankEventTime,
+      cadence
     };
   }
-}
-
-enum HeartRateCharacteristics {
-  HeartRateMeasurement = '00002a37-0000-1000-8000-00805f9b34fb',
 }
 
 type HeartRateMeasurement = {
@@ -686,7 +683,7 @@ class HeartRateMonitor extends GenericSensor {
   constructor(address: string = '') {
     super(address);
     this.service = SupportedBleServices.HeartRate;
-    this.characteristic = HeartRateCharacteristics.HeartRateMeasurement;
+    this.characteristic = SupportedCharacteristics.HeartRateMeasurement;
     this.listener = bleManagerEmitter.addListener(
       'BleManagerDidUpdateValueForCharacteristic',
       this._listenUpdateChangeOnCharAndEmitData
@@ -697,7 +694,7 @@ class HeartRateMonitor extends GenericSensor {
     // listens for updates on BLE characteristics and emits a data event for only the HR data.
     if (
       data.characteristic.toUpperCase() ==
-      this.fullUUID(HeartRateCharacteristics.HeartRateMeasurement)
+      this.fullUUID(SupportedCharacteristics.HeartRateMeasurement)
     ) {
       console.log(data.value)
       const buf = Buffer.from(data.value);
@@ -765,72 +762,3 @@ class HeartRateMonitor extends GenericSensor {
 }
 
 export { BleSensors, PowerMeter, CadenceMeter, HeartRateMonitor };
-
-// parseCSCFeature(measurement: Buffer): CSCFeature {
-//     const value = measurement.readUInt16LE(0);
-//     const wheelRevSupported = (value & 0b1) !== 0;
-//     const crankRevSupported = (value & 0b10) !== 0;
-//     const multipleLocationsSupported = (value & 0b100) !== 0;
-//     return {
-//       wheelRevSupported,
-//       crankRevSupported,
-//       multipleLocationsSupported
-//     };
-// }
-
-// parseCyclingPowerVector(data: Uint8Array): CyclingPowerVector {
-//     let flags = data[0];
-
-//     let crank_revolutions_present = (flags & 0b1) !== 0;
-//     let first_crank_measurement_angle_present = (flags & 0b10) !== 0;
-//     let instantaneous_force_array_present = (flags & 0b100) !== 0;
-//     let instantaneous_torque_array_present = (flags & 0b1000) !== 0;
-//     let instantaneous_measurement_direction_value = (flags & 0b110000) >> 4;
-
-//     let instantaneous_measurement_direction = InstantaneousMeasurementDirection.unknown;
-//     if (instantaneous_measurement_direction_value === 1) {
-//       instantaneous_measurement_direction = InstantaneousMeasurementDirection.tangential_component;
-//     } else if (instantaneous_measurement_direction_value === 2) {
-//       instantaneous_measurement_direction = InstantaneousMeasurementDirection.radial_component;
-//     } else if (instantaneous_measurement_direction_value === 3) {
-//       instantaneous_measurement_direction = InstantaneousMeasurementDirection.lateral_component;
-//     }
-
-//     let byte_offset = 1;
-//     let cumulative_crank_revs: number | null;
-//     let last_crank_event_time: number | null;
-//     let first_crank_measurement_angle: number | null;
-//     let instantaneous_force_magnitudes: number[] = [];
-//     let instantaneous_torque_magnitudes: number[] = [];
-
-//     if (crank_revolutions_present) {
-//       cumulative_crank_revs = new DataView(data.buffer, data.byteOffset + byte_offset, 2).getUint16(0, true);
-//       byte_offset += 2;
-//       last_crank_event_time = new DataView(data.buffer, data.byteOffset + byte_offset, 2).getUint16(0, true);
-//       byte_offset += 2;
-//     }
-
-//     if (first_crank_measurement_angle_present) {
-//       first_crank_measurement_angle = new DataView(data.buffer, data.byteOffset + byte_offset, 2).getUint16(0, true);
-//       byte_offset += 2;
-//     }
-
-//     for (let i = byte_offset; i < data.length; i += 2) {
-//       let element = new DataView(data.buffer, data.byteOffset + i, 2).getUint16(0, true);
-//       if (instantaneous_force_array_present) {
-//           instantaneous_force_magnitudes.push(element);
-//       } else if (instantaneous_torque_array_present) {
-//           instantaneous_torque_magnitudes.push(element);
-//       }
-//     }
-
-//     return {
-//         instantaneous_measurement_direction,
-//         cumulative_crank_revs,
-//         last_crank_event_time,
-//         first_crank_measurement_angle,
-//         instantaneous_force_magnitudes,
-//         instantaneous_torque_magnitudes
-//     };
-
-// }
