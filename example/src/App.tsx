@@ -9,8 +9,8 @@ const App = () => {
     console.log(peripheral);
   };
 
-  const handlePowerData = (data: any) => {
-    console.log('Power: ', data);
+  const handleHrData = (data: any) => {
+    console.log('Heart Rate: ', data);
   };
 
   const handleScanStop = () => {
@@ -27,44 +27,49 @@ const App = () => {
 
   useEffect(() => {
     const startBleSensors = async () => {
-      const bleSensor = new BleSensors();
-      await bleSensor.requestPermissions();
-      await bleSensor.start();
-      await bleSensor.startSensorDiscovery();
-      let sensorDiscoverySub = bleSensor.subscribeToDiscovery(
+      // Setup bleSensors instance and start it
+      const bleSensors = new BleSensors();
+      await bleSensors.requestPermissions();
+      await bleSensors.start();
+
+      // Do some scanning for devices.
+      await bleSensors.startSensorDiscovery();
+      let sensorDiscoverySub = bleSensors.subscribeToDiscovery(
         handleDiscoverPeripheral
       );
       let sensorDiscoveryStopSub =
-        bleSensor.subscribeToDiscoveryStop(handleScanStop);
-      await sleep(10000);
-      const sensorList = await bleSensor.getDiscoveredSensors();
+        bleSensors.subscribeToDiscoveryStop(handleScanStop);
+      await sleep(5000);
+      const sensorList = await bleSensors.getDiscoveredSensors();
       console.log(sensorList);
-      // if (sensorList[0]?.sensorType?.includes('HeartRate')) {
-      console.log(sensorList[0]);
+      await bleSensors.stopSensorDiscovery();
+      sensorDiscoverySub.remove();
+      sensorDiscoveryStopSub.remove();
+
+      // Now lets connect to a specific heart rate monitor
       const hrm = new HeartRateMonitor();
       hrm.address = 'F0:99:19:59:B4:00';
-      console.log(hrm);
 
       try {
         await hrm.connect();
+        hrm.subscribe(handleHrData);
       } catch (error) {
         console.log(error);
         hrm.disconnect();
       }
-      hrm.subscribe(handlePowerData);
       await sleep(2000);
-      const list = await bleSensor
-        .getConnectedSensors()
+      const isConnected = await hrm
+        .isConnected()
         .catch((err) => handleError(err));
-      console.log('Connected list: ', list);
+      console.log('HRM isConnected = ', isConnected);
       await sleep(5000);
-      // await hrm.stopNotification(hrm._address).catch((err) => handleError(err));
-      // await sleep(5000)
-      console.log('just before disconnect');
+      await hrm.stopNotification(hrm._address).catch((err) => handleError(err));
+      await sleep(5000);
       await hrm.disconnect().catch((err) => handleError(err));
-      await bleSensor.stopSensorDiscovery();
-      sensorDiscoverySub.remove();
-      sensorDiscoveryStopSub.remove();
+      const isConnectedAfter = await hrm
+        .isConnected()
+        .catch((err) => handleError(err));
+      console.log('HRM isConnected = ', isConnectedAfter);
     };
     // };
 

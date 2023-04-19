@@ -301,7 +301,6 @@ enum SensorLocation {
 class GenericSensor extends EventEmitter {
   _address: string;
   isConnecting: boolean;
-  isConnected: boolean;
   isNotifying: boolean;
   characteristic: string;
   service: string;
@@ -312,7 +311,6 @@ class GenericSensor extends EventEmitter {
     super();
     this._address = address;
     this.isConnecting = false;
-    this.isConnected = false;
     this.isNotifying = false;
     this.characteristic = '';
     this.service = '';
@@ -334,7 +332,6 @@ class GenericSensor extends EventEmitter {
       BleManager.connect(this._address)
         .then(() => {
           console.log('Connected success.');
-          this.isConnected = true;
           return BleManager.retrieveServices(this._address);
         })
         .then((peripheralInfo: BleManager.PeripheralInfo) => {
@@ -388,6 +385,10 @@ class GenericSensor extends EventEmitter {
           reject(err);
         });
     });
+  }
+
+  isConnected(): Promise<boolean> {
+    return BleManager.isPeripheralConnected(this._address, []);
   }
 
   startNotification(peripheralId: string): Promise<boolean> {
@@ -578,7 +579,6 @@ class PowerMeter extends GenericSensor {
 
   getSensorLocation(): Promise<any> {
     return new Promise((resolve, reject) => {
-      if (this.isConnected) {
         BleManager.retrieveServices(this._address)
           .then((peripheralInfo) => {
             // Success code
@@ -603,11 +603,8 @@ class PowerMeter extends GenericSensor {
           })
           .catch((err) => {
             console.log(err);
-            resolve(err);
+            reject(err);
           });
-      } else {
-        reject(new Error("Can't get services of unconnected device"));
-      }
     });
   }
 }
