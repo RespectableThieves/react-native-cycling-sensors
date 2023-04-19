@@ -31,7 +31,7 @@ enum SupportedBleServices {
   SensorLocation = '2a5d',
 }
 
-interface typedPeripheral extends BleManager.Peripheral {
+export interface PeripheralSensor extends BleManager.Peripheral {
   sensorType?: string[];
 }
 
@@ -149,7 +149,7 @@ class BleSensors {
     return bleManagerEmitter.addListener('BleManagerStopScan', func);
   }
 
-  getDiscoveredSensors(): Promise<typedPeripheral[]> {
+  getDiscoveredSensors(): Promise<PeripheralSensor[]> {
     return new Promise((resolve, reject) => {
       BleManager.getDiscoveredPeripherals()
         .then((peripheralsArray: Peripheral[]) => {
@@ -164,7 +164,7 @@ class BleSensors {
     });
   }
 
-  getConnectedSensors(): Promise<typedPeripheral[]> {
+  getConnectedSensors(): Promise<PeripheralSensor[]> {
     return new Promise((resolve, reject) => {
       BleManager.getConnectedPeripherals([])
         .then((peripheralsArray: Peripheral[]) => {
@@ -178,11 +178,11 @@ class BleSensors {
     });
   }
 
-  _getPeripheralType(list: Peripheral[]): typedPeripheral[] {
-    let connectedList: typedPeripheral[] = [];
+  _getPeripheralType(list: Peripheral[]): PeripheralSensor[] {
+    let connectedList: PeripheralSensor[] = [];
     list.forEach((device) => {
       if (device.advertising.serviceUUIDs) {
-        let tDevice: typedPeripheral = device;
+        let tDevice: PeripheralSensor = device;
         tDevice.sensorType = [];
         if (
           device.advertising.serviceUUIDs.includes(
