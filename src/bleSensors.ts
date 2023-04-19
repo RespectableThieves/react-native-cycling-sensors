@@ -243,7 +243,9 @@ type CSCMeasurement = {
 };
 
 type CyclingPowerMeasurement = {
-  instantaneous_power: number;
+  maximum_angle: number | null;
+  minimum_angle: number | null;
+  instantaneous_power: number | null;
   pedal_power_balance?: number | null;
   accumulated_torque: number | null;
   cumulative_wheel_revs: number | null;
@@ -257,6 +259,7 @@ type CyclingPowerMeasurement = {
   top_dead_spot_angle: number | null;
   bottom_dead_spot_angle: number | null;
   accumulated_energy: number | null;
+  cadence: number | null;
 };
 
 enum SensorLocation {
@@ -374,7 +377,11 @@ class GenericSensor extends EventEmitter {
 
   async startNotification(peripheralId: string): Promise<boolean> {
     try {
-      await BleManager.startNotification(peripheralId, this.service, this.characteristic);
+      await BleManager.startNotification(
+        peripheralId,
+        this.service,
+        this.characteristic
+      );
       console.log('Notifications started on: ', this._address);
       this.isNotifying = true;
       return true;
@@ -382,7 +389,6 @@ class GenericSensor extends EventEmitter {
       throw err;
     }
   }
-  
 
   stopNotification(peripheralId: string): Promise<boolean> {
     return new Promise((resolve, reject) => {
@@ -432,7 +438,9 @@ class GenericSensor extends EventEmitter {
 }
 
 class PowerMeter extends GenericSensor {
-  // TODO: Implement CSC for power meters that have PowerVector char on the 1818 power service
+  previousCrankRevs: number | null;
+  previousCrankEventTime: number | null;
+
   constructor(address: string = '') {
     super(address);
     this.service = SupportedBleServices.CyclingPower;
@@ -441,6 +449,8 @@ class PowerMeter extends GenericSensor {
       'BleManagerDidUpdateValueForCharacteristic',
       this._listenUpdateChangeOnCharAndEmitData
     );
+    this.previousCrankRevs = 0;
+    this.previousCrankEventTime = 0;
   }
 
   _listenUpdateChangeOnCharAndEmitData = (data: any) => {
@@ -450,139 +460,124 @@ class PowerMeter extends GenericSensor {
       data.characteristic.toUpperCase() ===
       this.fullUUID(SupportedCharacteristics.CyclingPowerMeasurement)
     ) {
-      let dataArray = new Uint8Array(data.value);
+      // let dataArray = new Uint8Array(data.value);
+      let dataArray = Buffer.from(data.value);
       const powerData = this.parseCyclingPowerMeasurement(dataArray);
       this.emit('data', powerData);
-    } 
+    }
+    console.log(data);
     console.log(data.value);
-
-    
   };
 
-  parseCyclingPowerMeasurement(data: Uint8Array): CyclingPowerMeasurement {
-    const flags = new DataView(data.buffer, data.byteOffset, 2).getUint16(
-      0,
-      true
-    );
-
-    const pedal_power_balance_included_flag = 1;
-    const accumulated_torque_present = 1 << 2; /* eslint-disable */
-    // const wheel_rev_included_flag = 1 << 4; /* eslint-disable */
-    // const crank_rev_included_flag = 1 << 5; /* eslint-disable */
-    // const extreme_force_included_flag = 1 << 6; /* eslint-disable */
-    // const extreme_torque_included_flag = 1 << 7; /* eslint-disable */
-    const extreme_angles_included_flag = 1 << 8;
-    const top_dead_spot_included_flag = 1 << 9;
-    const bottom_dead_spot_included_flag = 1 << 10;
-    const accumulated_energy_included_flag = 1 << 11;
-
-    let byte_offset = 2;
-
-    const instantaneous_power = new DataView(
-      data.buffer,
-      data.byteOffset + byte_offset,
-      2
-    ).getUint16(0, true);
-    let pedal_power_balance = null;
-    let accumulated_torque = null;
-    let cumulative_wheel_revs = null;
-    let last_wheel_event_time = null;
-    let cumulative_crank_revs = null;
-    let last_crank_event_time = null;
-    let maximum_force_magnitude = null;
-    let minimum_force_magnitude = null;
-    let maximum_torque_magnitude = null;
-    let minimum_torque_magnitude = null;
-    let top_dead_spot_angle = null;
-    let bottom_dead_spot_angle = null;
-    let accumulated_energy = null;
-
-    byte_offset += 2;
-    if (flags & pedal_power_balance_included_flag) {
-      pedal_power_balance = data[byte_offset] ? data[byte_offset] : null;
-      byte_offset += 1;
-    }
-
-    if (flags & accumulated_torque_present) {
-      accumulated_torque = new DataView(
-        data.buffer,
-        data.byteOffset + byte_offset,
-        2
-      ).getUint16(0, true);
-      byte_offset += 2;
-    }
-
-    if (flags & extreme_angles_included_flag) {
-      // TODO: Implement extreme angles
-      byte_offset += 3;
-    }
-
-    if (flags & top_dead_spot_included_flag) {
-      top_dead_spot_angle = new DataView(
-        data.slice(byte_offset, byte_offset + 2)
-      ).getInt16(0, true);
-      byte_offset += 2;
-    }
-
-    if (flags & bottom_dead_spot_included_flag) {
-      bottom_dead_spot_angle = new DataView(
-        data.slice(byte_offset, byte_offset + 2)
-      ).getInt16(0, true);
-      byte_offset += 2;
-    }
-
-    if (flags & accumulated_energy_included_flag) {
-      accumulated_energy = new DataView(
-        data.slice(byte_offset, byte_offset + 2)
-      ).getInt16(0, true);
-    }
-
-    return {
-      instantaneous_power,
-      accumulated_energy,
-      pedal_power_balance,
-      accumulated_torque,
-      cumulative_wheel_revs,
-      last_wheel_event_time,
-      cumulative_crank_revs,
-      last_crank_event_time,
-      maximum_force_magnitude,
-      minimum_force_magnitude,
-      maximum_torque_magnitude,
-      minimum_torque_magnitude,
-      top_dead_spot_angle,
-      bottom_dead_spot_angle,
+  parseCyclingPowerMeasurement(data: Buffer): CyclingPowerMeasurement {
+    const result: CyclingPowerMeasurement = {
+      accumulated_energy: null,
+      accumulated_torque: null,
+      bottom_dead_spot_angle: null,
+      cumulative_crank_revs: null,
+      cumulative_wheel_revs: null,
+      instantaneous_power: null,
+      last_crank_event_time: null,
+      last_wheel_event_time: null,
+      maximum_force_magnitude: null,
+      maximum_torque_magnitude: null,
+      minimum_force_magnitude: null,
+      minimum_torque_magnitude: null,
+      pedal_power_balance: null,
+      top_dead_spot_angle: null,
+      maximum_angle: null,
+      minimum_angle: null,
+      cadence: null,
     };
+
+    if (!data || data.length === 0) {
+      throw new Error('Input data is empty or undefined');
+    }
+
+    const flags = data.readUInt16LE(0);
+    console.log('flags as binary: ', flags.toString(2));
+    let index = 2;
+
+    result.instantaneous_power = data.readInt16LE(index);
+    index += 2;
+
+    if (flags & 0b0000_0001) {
+      result.pedal_power_balance = data[index]! / 2;
+      index += 1;
+    }
+
+    if (flags & 0b0000_0100) {
+      result.accumulated_torque = data.readInt16LE(index) / 32;
+      index += 2;
+    }
+
+    if (flags & 0b0001_0000) {
+      result.cumulative_wheel_revs = data.readInt16LE(index);
+      index += 2;
+      result.last_wheel_event_time = data.readInt16LE(index) / 1024;
+      index += 2;
+    }
+
+    if (flags & 0b0010_0000) {
+      result.cumulative_crank_revs = data.readInt16LE(index);
+      index += 2;
+      result.last_crank_event_time = data.readInt16LE(index) / 1024;
+      index += 2;
+    }
+
+    let cadence: number | null = null;
+
+    if (
+      result.cumulative_crank_revs !== null &&
+      result.last_crank_event_time !== null &&
+      this.previousCrankRevs !== null &&
+      this.previousCrankEventTime !== null
+    ) {
+      const crankRevsDifference =
+        result.cumulative_crank_revs - this.previousCrankRevs;
+      const crankEventTimeDifference =
+        result.last_crank_event_time - this.previousCrankEventTime;
+
+      if (crankEventTimeDifference > 0) {
+        cadence = (crankRevsDifference / crankEventTimeDifference) * 60;
+      }
+    }
+
+    this.previousCrankRevs = result.cumulative_crank_revs;
+    this.previousCrankEventTime = result.last_crank_event_time;
+
+    result.cadence = cadence;
+    return result;
   }
 
   getSensorLocation(): Promise<any> {
     return new Promise((resolve, reject) => {
-        BleManager.retrieveServices(this._address)
-          .then((peripheralInfo) => {
-            // Success code
-            console.log('Services:', peripheralInfo.services);
-            const charStrings = peripheralInfo.characteristics
-              ? peripheralInfo.characteristics.map((obj) => obj.characteristic)
-              : [];
-            if (charStrings.includes('2a5d')) {
-              console.log('Sensor location feature supported');
-              BleManager.read(this._address, this.service, '2a5d')
-                .then((readData) => {
-                  const buffer = Buffer.from(readData);
-                  const sensorData = buffer.readUInt8(0);
-                  let location = SensorLocation[sensorData];
-                  resolve(location);
-                })
-                .catch((error) => {
-                  console.log(error);
-                  resolve(error);
-                });
-            } else reject(new Error('Sensor Location not supported'));
-          })
-          .catch((err) => {
-            console.log(err);
-            reject(err);
-          });
+      BleManager.retrieveServices(this._address)
+        .then((peripheralInfo) => {
+          // Success code
+          console.log('Services:', peripheralInfo.services);
+          const charStrings = peripheralInfo.characteristics
+            ? peripheralInfo.characteristics.map((obj) => obj.characteristic)
+            : [];
+          if (charStrings.includes('2a5d')) {
+            console.log('Sensor location feature supported');
+            BleManager.read(this._address, this.service, '2a5d')
+              .then((readData) => {
+                const buffer = Buffer.from(readData);
+                const sensorData = buffer.readUInt8(0);
+                let location = SensorLocation[sensorData];
+                resolve(location);
+              })
+              .catch((error) => {
+                console.log(error);
+                resolve(error);
+              });
+          } else reject(new Error('Sensor Location not supported'));
+        })
+        .catch((err) => {
+          console.log(err);
+          reject(err);
+        });
     });
   }
 }
@@ -590,7 +585,7 @@ class PowerMeter extends GenericSensor {
 class CadenceMeter extends GenericSensor {
   previousCrankRevs!: number | null;
   previousCrankEventTime!: number | null;
-  
+
   constructor(address: string = '') {
     super(address);
     this.service = SupportedBleServices.CyclingSpeedAndCadence;
@@ -605,7 +600,7 @@ class CadenceMeter extends GenericSensor {
     // listes for updates on BLE characteristics and emits a data event for only the power data.
     // console.log('Received data from ' + data.peripheral + ' characteristic ' + data.characteristic, data.value);
     if (
-      data.characteristic.toUpperCase() ==
+      data.characteristic.toUpperCase() ===
       this.fullUUID(SupportedCharacteristics.CSCMeasurement)
     ) {
       const cscData = this.parseCSCMeasurement(data.value);
@@ -652,22 +647,23 @@ class CadenceMeter extends GenericSensor {
       this.previousCrankEventTime !== null
     ) {
       const crankRevsDifference = cumulativeCrankRevs - this.previousCrankRevs;
-      const crankEventTimeDifference = (lastCrankEventTime - this.previousCrankEventTime) / 1024;
+      const crankEventTimeDifference =
+        (lastCrankEventTime - this.previousCrankEventTime) / 1024;
 
       if (crankEventTimeDifference > 0) {
         cadence = (crankRevsDifference / crankEventTimeDifference) * 60;
       }
     }
 
-  this.previousCrankRevs = cumulativeCrankRevs;
-  this.previousCrankEventTime = lastCrankEventTime;
+    this.previousCrankRevs = cumulativeCrankRevs;
+    this.previousCrankEventTime = lastCrankEventTime;
 
     return {
       cumulativeWheelRevs,
       lastWheelEventTime,
       cumulativeCrankRevs,
       lastCrankEventTime,
-      cadence
+      cadence,
     };
   }
 }
@@ -693,13 +689,13 @@ class HeartRateMonitor extends GenericSensor {
   _listenUpdateChangeOnCharAndEmitData = (data: any) => {
     // listens for updates on BLE characteristics and emits a data event for only the HR data.
     if (
-      data.characteristic.toUpperCase() ==
+      data.characteristic.toUpperCase() ===
       this.fullUUID(SupportedCharacteristics.HeartRateMeasurement)
     ) {
-      console.log(data.value)
+      console.log(data.value);
       const buf = Buffer.from(data.value);
       const hrData = this.parseHeartRateMeasurement(buf);
-      
+
       this.emit('data', hrData);
     }
   };
@@ -715,21 +711,21 @@ class HeartRateMonitor extends GenericSensor {
     }
 
     const flags = data[0] as number;
-  
+
     const isUint16MeasurementMask = 0x01;
     const isContactDetectedMask = 0x06;
     const isEnergyExpendedPresentMask = 0x08;
     const isRRIntervalPresentMask = 0x10;
-  
+
     let sensorContact: boolean | undefined;
     let bpm: number | undefined;
     let rrInterval: number[] | undefined = [];
     let energyExpended: number | undefined;
-  
+
     let measurementByteOffset = 1;
-    
+
     sensorContact = Boolean(flags & isContactDetectedMask);
-  
+
     if (flags & isUint16MeasurementMask) {
       bpm = data.readUInt16LE(measurementByteOffset);
       measurementByteOffset += 2;
@@ -737,12 +733,12 @@ class HeartRateMonitor extends GenericSensor {
       bpm = data[measurementByteOffset];
       measurementByteOffset += 1;
     }
-  
+
     if (flags & isEnergyExpendedPresentMask) {
       energyExpended = data.readUInt16LE(measurementByteOffset);
       measurementByteOffset += 2;
     }
-  
+
     if (flags & isRRIntervalPresentMask) {
       while (data.length >= measurementByteOffset + 2) {
         rrInterval.push(data.readUInt16LE(measurementByteOffset) / 1024);
@@ -751,7 +747,7 @@ class HeartRateMonitor extends GenericSensor {
     } else {
       rrInterval = undefined;
     }
-  
+
     return {
       sensorContact,
       bpm,
